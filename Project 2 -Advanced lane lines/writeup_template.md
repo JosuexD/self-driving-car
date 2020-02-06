@@ -134,6 +134,8 @@ Based on these 2 facts we do the computation of the offset in `computer_offset_f
 
 #### 1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
 
+Images for the different stages of the process can be observed in the `output_images` folder.
+
 My video can be found in this project directory labeled `final_video.mp4`
 
 ---
