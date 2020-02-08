@@ -71,6 +71,8 @@ def compute_offset_from_center(line_lt, line_rt, frame_width):
 
 def process_pipeline(frame, keep_state=True):
 
+    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
     global line_lt, line_rt, processed_frames
 
     # undistort the image using coefficients found in calibration
@@ -86,7 +88,7 @@ def process_pipeline(frame, keep_state=True):
     if processed_frames > 0 and keep_state and line_lt.detected and line_rt.detected:
         line_lt, line_rt, img_fit = get_fits_by_previous_fits(img_birdeye, line_lt, line_rt, verbose=False)
     else:
-        line_lt, line_rt, img_fit = get_fits_by_sliding_windows(img_birdeye, line_lt, line_rt, n_windows=9, verbose=False)
+        line_lt, line_rt, img_fit = get_fits_by_sliding_windows(img_birdeye, line_lt, line_rt, n_windows=7, verbose=False)
 
     # compute offset in meter from center of the lane
     offset_meter = compute_offset_from_center(line_lt, line_rt, frame_width=frame.shape[1])
@@ -99,6 +101,7 @@ def process_pipeline(frame, keep_state=True):
 
     processed_frames += 1
 
+    blend_output = cv2.cvtColor(blend_output, cv2.COLOR_BGR2RGB)
     return blend_output
 
 

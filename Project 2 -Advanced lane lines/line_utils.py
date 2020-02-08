@@ -33,7 +33,7 @@ class Line:
         self.detected = detected
 
         if clear_buffer:
-            self.recent_fits_meter = []
+            self.recent_fits_pixel = []
             self.recent_fits_meter = []
 
         self.last_fit_pixel = new_fit_pixel
@@ -290,7 +290,7 @@ def draw_back_onto_the_road(img_undistorted, Minv, line_lt, line_rt, keep_state)
     idx = np.any([line_dewarped != 0][0], axis = 2)
     lines_mask[idx] = line_dewarped[idx]
 
-    blend_onto_road = cv2.addWeighted(src1 = lines_mask, alpha = 0.8, src2 = blend_onto_road, beta = 0.5, gamma = 0)        
+    blend_onto_road = cv2.addWeighted(src1 = lines_mask, alpha = 0.8, src2 = blend_onto_road, beta = 0.5, gamma = 0.0)        
 
     return blend_onto_road
 

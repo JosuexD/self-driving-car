@@ -73,7 +73,7 @@ def calibrate_camera(calib_images_dir, verbose = False):
 
             if verbose:
                 # Draw and display corners 
-                img = cv2.drawChessboardCorners(img, (gridX, gridY), corners, pattern_found)
+                img = cv2.drawChessboardCorners(img, (gridY, gridX), corners, pattern_found)
                 cv2.imshow('img', img)
                 cv2.waitKey(1500)
 
