@@ -1,0 +1,7 @@
+*.pyc
+
+Project 3 - Behavioral Cloning\driving_log.csv
+Project 3 - Behavioral Cloning/IMG/*
+Project 3 - Behavioral Cloning/IMG.bak/*
+Project 2 -Advanced lane lines/output_images/*
+Project 2 -Advanced lane lines/output_images/*/*
