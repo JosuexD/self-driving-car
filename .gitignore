@@ -5,3 +5,8 @@ Project 3 - Behavioral Cloning/IMG/*
 Project 3 - Behavioral Cloning/IMG.bak/*
 Project 2 -Advanced lane lines/output_images/*
 Project 2 -Advanced lane lines/output_images/*/*
+Project 2 -Advanced lane lines/__pycache__/*
+Project 2 -Advanced lane lines/__pycache__/calibration_utils.cpython-37.pyc
+*.pyc
+
+term2_sim_windows
