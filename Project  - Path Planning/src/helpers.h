@@ -4,10 +4,16 @@
 #include <math.h>
 #include <string>
 #include <vector>
+#include "json.hpp"
+#include <iostream>
 
 // for convenience
 using std::string;
 using std::vector;
+
+const double lane_width = 4.0; // lane width
+const double safety_margin = 20.0; // distance to stay from other cars
+const double max_safe_speed = 49.5; // max reference speed in limits mph
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
@@ -127,12 +133,14 @@ vector<double> getFrenet(double x, double y, double theta,
 }
 
 // Transform from Frenet s,d coordinates to Cartesian x,y
-vector<double> getXY(double s, double d, const vector<double> &maps_s, 
-                     const vector<double> &maps_x, 
-                     const vector<double> &maps_y) {
+vector<double> getCartesian(double s, double d, 
+const vector<double> &maps_s,
+const vector<double> &maps_x,
+const vector<double> &maps_y) {
   int prev_wp = -1;
-
-  while (s > maps_s[prev_wp+1] && (prev_wp < (int)(maps_s.size()-1))) {
+  while (s > maps_s[prev_wp+1] && 
+    (prev_wp < (int)(maps_s.size()-1))) 
+  {
     ++prev_wp;
   }
 
@@ -150,8 +158,38 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s,
 
   double x = seg_x + d*cos(perp_heading);
   double y = seg_y + d*sin(perp_heading);
+  std::cout << "spline x for " << s << ": " << x << std::endl;
 
   return {x,y};
 }
+
+// Checking if a vehicle is in a particular lane
+bool isInLane(double d, int lane)
+{
+    // it checks the mathematical operation first and then the logical operations
+    // the first check, checks if i am above the start point of the lane.
+    // the second check, checks if we are less than the end point of the lane
+    return (d > lane_width * lane) && (d < lane_width * lane + lane_width);
+}
+
+struct Vehicle
+{
+    double d;
+    double vx, vy;
+    double speed;
+    double s;
+
+    Vehicle (nlohmann::json sensor_fusion)
+    {
+        this->vx = sensor_fusion[3];
+        this->vy = sensor_fusion[4];
+        this->s = sensor_fusion[5];
+        this->d = sensor_fusion[6];
+        this->speed = sqrt(vx * vx + vy * vy);
+    }
+};
+
+
+
 
 #endif  // HELPERS_H
