@@ -15,9 +15,15 @@ using nlohmann::json;
 using std::string;
 using std::vector;
 
-void updateNextCoordinates(vector<double> &next_x_vals, vector<double> &next_y_vals,
-                           const double ref_velocity, const int path_size, tk::spline spl,
-                           const double &ref_yaw, const double &ref_x, const double &ref_y);
+void setNextWayPoints(vector<double> &next_x_vals, vector<double> &next_y_vals,
+                      const double ref_velocity, const int path_size, tk::spline spl,
+                      const double &ref_yaw, const double &ref_x, const double &ref_y);
+
+void updateDrivingLane(int &lane, const bool &ready_for_lane_change, const bool &is_right_lane_available, const bool &is_left_lane_available);
+
+void updateVelocity(double &ref_vel, const bool &is_too_close);
+
+// void(bool &is_too_close, bool &is_closer_than_safety_margin, sensor_fusion);
 
 int main()
 {
@@ -119,9 +125,12 @@ int main()
           bool is_too_close = false;
           bool prepared_for_lane_change = false;
           bool ready_for_lane_change = false;
-          bool is_left_lane_free = true;
-          bool is_right_lane_free = true;
+          bool is_left_lane_available = true;
+          bool is_right_lane_available = true;
 
+          // checking sensor fusion data to check if cars are too close to in front of us
+
+          // TODO - MOVE THIS ENTIRE FOR LOOP INTO A DIFFERENT FUNCTION
           for (size_t i = 0; i < sensor_fusion.size(); ++i)
           {
             // packing information about the vehicles around us in a struct format
@@ -152,7 +161,6 @@ int main()
               Vehicle vehicle(sensor_fusion[i]);
 
               // checking left and then right lane
-
               if (isInLane(vehicle.d, lane - 1))
               {
                 ++num_vehicles_left;                                   // increasing count of vehicles to our left
@@ -160,7 +168,7 @@ int main()
                 bool too_close_to_change = (vehicle.s > car_s - safety_margin / 2) && (vehicle.s < car_s + safety_margin / 2);
                 if (too_close_to_change)
                 {
-                  is_left_lane_free = false;
+                  is_left_lane_available = false;
                 }
               }
               else if (isInLane(vehicle.d, lane - 1))
@@ -170,40 +178,22 @@ int main()
                 bool too_close_to_change = (vehicle.s < car_s - safety_margin / 2) && (vehicle.s < car_s + safety_margin / 2);
                 if (too_close_to_change)
                 {
-                  is_right_lane_free = false;
+                  is_right_lane_available = false;
                 }
               }
 
-              if (is_left_lane_free || is_right_lane_free)
+              if (is_left_lane_available || is_right_lane_available)
               {
                 ready_for_lane_change = true;
               }
             }
           }
 
-          // performing lane change
+          // performing lane change based on lane availability and being ready to change lanes
+          updateDrivingLane(lane, ready_for_lane_change, is_left_lane_available, is_right_lane_available);
 
-          // we check for the following flags and ensuring that our current lane is not the left-most left lane
-          if (ready_for_lane_change && is_left_lane_free && lane > 0)
-          {
-            lane -= 1;
-          }
-          // we check for the following flags and ensuring that our current lane is not the right-most left lane
-          else if (ready_for_lane_change && is_right_lane_free && lane < 2)
-          {
-            lane += 1;
-          }
-
-          // adjusting current vehicle speed whether we are too close to other vehicles or accelerating if we are below the maximum speed limit. T
-          // this is because we aim to be as efficient and be as fast as wecan as long as we are within the speed limits and from a safe distance from another car
-          if (is_too_close)
-          {
-            ref_vel -= acceleration; // deceleration speed
-          }
-          else if (ref_vel < max_safe_speed)
-          {
-            ref_vel += acceleration; //acceleration speed
-          }
+          // updating velocity based on restrictions
+          updateVelocity(ref_vel, is_too_close);
 
           // list of waypoints that will be used for spline interpolations
           vector<double> pts_x;
@@ -261,21 +251,22 @@ int main()
             double shift_x = pts_x[i] - ref_x;
             double shift_y = pts_y[i] - ref_y;
 
-            std::cout << "value in loop: " << pts_x[i] << std::endl;
             pts_x[i] = shift_x * cos(0 - ref_yaw) - shift_y * sin(0 - ref_yaw);
             pts_y[i] = shift_x * sin(0 - ref_yaw) + shift_y * cos(0 - ref_yaw);
           }
 
+          // DEBUGGING START
           std::cout << "x size: " << pts_x.size() << std::endl;
           std::cout << "y size: " << pts_y.size() << std::endl;
           std::cout << "yaw: " << ref_yaw << std::endl;
           std::cout << "X values: " << pts_x[0] << " | " << pts_x[1] << " | " << pts_x[2] << " | " << pts_x[3] << " | " << pts_x[4] << std::endl;
+          // DEBUGGING END
 
           // creating spline
           tk::spline spl;
           spl.set_points(pts_x, pts_y);
 
-          //definited x y points for the planner
+          // defining vectors that will hold the x y points for the planner to execute
           vector<double> next_x_vals;
           vector<double> next_y_vals;
 
@@ -286,8 +277,9 @@ int main()
             next_y_vals.push_back(previous_path_y[i]);
           }
 
-          updateNextCoordinates(next_x_vals, next_y_vals, ref_vel, previous_path_x.size(), spl, ref_yaw, ref_x, ref_y);
+          setNextWayPoints(next_x_vals, next_y_vals, ref_vel, previous_path_x.size(), spl, ref_yaw, ref_x, ref_y);
 
+          // Packaging waypoints to send to sim
           json msgJson;
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
@@ -331,19 +323,18 @@ int main()
 }
 
 // Updating the vector values with the next waypoints that will be sent over to the simulator
-void updateNextCoordinates(vector<double> &next_x_vals,
-                           vector<double> &next_y_vals,
-                           const double ref_velocity,
-                           const int path_size,
-                           tk::spline spl,
-                           const double &ref_yaw,
-                           const double &ref_x,
-                           const double &ref_y)
+void setNextWayPoints(vector<double> &next_x_vals,
+                      vector<double> &next_y_vals,
+                      const double ref_velocity,
+                      const int path_size,
+                      tk::spline spl,
+                      const double &ref_yaw,
+                      const double &ref_x,
+                      const double &ref_y)
 {
   double target_x = 30.0;
   double target_y = spl(0);
   double target_dist = sqrt(target_x * target_x + target_y * target_y);
-
   double x_add_on = 0.0;
 
   for (size_t i = 1; i <= 50 - path_size; ++i)
@@ -366,5 +357,32 @@ void updateNextCoordinates(vector<double> &next_x_vals,
 
     next_x_vals.push_back(x_point);
     next_y_vals.push_back(y_point);
+  }
+}
+
+void updateDrivingLane(int &lane, const bool &ready_for_lane_change, const bool &is_right_lane_available, const bool &is_left_lane_available)
+{
+  // we check for the following flags and ensuring that our current lane is not the left-most left lane
+  if (ready_for_lane_change && is_left_lane_available && lane > 0)
+  {
+    lane -= 1;
+  }
+  // we check for the following flags and ensuring that our current lane is not the right-most left lane
+  else if (ready_for_lane_change && is_right_lane_available && lane < 2)
+  {
+    lane += 1;
+  }
+}
+
+// adjusting current velocity by 1.prioritizing safety and then 2. efficiency, by accelerating as long as we are not over the speed limit
+void updateVelocity(double &ref_vel, const bool &is_too_close)
+{
+  if (is_too_close)
+  {
+    ref_vel -= acceleration; // deceleration speed
+  }
+  else if (ref_vel < max_safe_speed)
+  {
+    ref_vel += acceleration; //acceleration speed
   }
 }
