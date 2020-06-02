@@ -23,7 +23,8 @@ void updateDrivingLane(int &lane, const bool &ready_for_lane_change, const bool 
 
 void updateVelocity(double &ref_vel, const bool &is_too_close);
 
-// void(bool &is_too_close, bool &is_closer_than_safety_margin, sensor_fusion);
+// todo - change sensor_fusion to const ref since we are not changing any date from it just accessing it
+void checkVehicleInFront(bool &is_too_close, bool &prepare_for_lane_change, const nlohmann::json &sensor_fusion, const int &lane, const int &prev_size, const double &car_s);
 
 int main()
 {
@@ -104,7 +105,7 @@ int main()
           // Previous path data given to the Planner
           auto previous_path_x = j[1]["previous_path_x"];
           auto previous_path_y = j[1]["previous_path_y"];
-          std::cout << "previous path: " << previous_path_x << std::endl;
+
           // Previous path's end s and d values
           double end_path_s = j[1]["end_path_s"];
           double end_path_d = j[1]["end_path_d"];
@@ -123,35 +124,16 @@ int main()
 
           // setting flags for state machine transitions
           bool is_too_close = false;
-          bool prepared_for_lane_change = false;
+          bool prepare_for_lane_change = false;
           bool ready_for_lane_change = false;
           bool is_left_lane_available = true;
           bool is_right_lane_available = true;
 
           // checking sensor fusion data to check if cars are too close to in front of us
 
-          // TODO - MOVE THIS ENTIRE FOR LOOP INTO A DIFFERENT FUNCTION
-          for (size_t i = 0; i < sensor_fusion.size(); ++i)
-          {
-            // packing information about the vehicles around us in a struct format
-            Vehicle vehicle(sensor_fusion[i]);
+          checkVehicleInFront(is_too_close, prepare_for_lane_change, sensor_fusion, lane, prev_size, car_s);
 
-            if (isInLane(vehicle.d, lane))
-            {
-              vehicle.s += (double)prev_size * 0.02 * vehicle.speed;
-
-              bool is_in_front_of_us = vehicle.s > car_s;                            // checking the serret units to see if it's above our
-              bool is_closer_than_safety_margin = vehicle.s - car_s < safety_margin; // comparing the vehicle to car, and checking it agains the safety marging we have in place
-
-              if (is_in_front_of_us && is_closer_than_safety_margin)
-              {
-                is_too_close = true;
-                prepared_for_lane_change = true;
-              }
-            }
-          }
-
-          if (prepared_for_lane_change)
+          if (prepare_for_lane_change)
           {
             int num_vehicles_left = 0;
             int num_vehicles_right = 0;
@@ -171,7 +153,7 @@ int main()
                   is_left_lane_available = false;
                 }
               }
-              else if (isInLane(vehicle.d, lane - 1))
+              else if (isInLane(vehicle.d, lane + 1))
               {
                 ++num_vehicles_right; // increasing count of vehicles to our right
                 vehicle.s += (double)prev_size * 0.02 * vehicle.speed;
@@ -384,5 +366,29 @@ void updateVelocity(double &ref_vel, const bool &is_too_close)
   else if (ref_vel < max_safe_speed)
   {
     ref_vel += acceleration; //acceleration speed
+  }
+}
+
+void checkVehicleInFront(bool &is_too_close, bool &prepare_for_lane_change, const nlohmann::json &sensor_fusion, const int &lane, const int &prev_size, const double &car_s)
+{
+  for (size_t i = 0; i < sensor_fusion.size(); ++i)
+  {
+    // creating instance of vehicle of current sensor fusion vehice
+    Vehicle vehicle(sensor_fusion[i]);
+
+    if (isInLane(vehicle.d, lane))
+    {
+      vehicle.s += (double)prev_size * 0.02 * vehicle.speed;
+
+      bool is_in_front_of_us = vehicle.s > car_s;                            // checking the serret units to see if it's above our
+      bool is_closer_than_safety_margin = vehicle.s - car_s < safety_margin; // comparing the vehicle to car, and checking it agains the safety marging we have in place
+
+      if (is_in_front_of_us && is_closer_than_safety_margin)
+      {
+        is_too_close = true;
+        prepare_for_lane_change = true;
+        std::cout << "STATUS: Vehicle in front of us. Preparing for lane change." << std::endl;
+      }
+    }
   }
 }
