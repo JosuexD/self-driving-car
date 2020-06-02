@@ -175,8 +175,6 @@ vector<double> getCartesian(double s, double d,
 
   double x = seg_x + d * cos(perp_heading);
   double y = seg_y + d * sin(perp_heading);
-  std::cout << "spline x for " << s << ": " << x << std::endl;
-
   return {x, y};
 }
 

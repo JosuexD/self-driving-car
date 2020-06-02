@@ -199,7 +199,6 @@ int main()
           }
           else
           {
-            std::cout << "previous size is more than 2" << std::endl;
 
             ref_x = previous_path_x[prev_size - 1];
             ref_y = previous_path_y[prev_size - 1];
@@ -238,10 +237,10 @@ int main()
           }
 
           // DEBUGGING START
-          std::cout << "x size: " << pts_x.size() << std::endl;
-          std::cout << "y size: " << pts_y.size() << std::endl;
-          std::cout << "yaw: " << ref_yaw << std::endl;
-          std::cout << "X values: " << pts_x[0] << " | " << pts_x[1] << " | " << pts_x[2] << " | " << pts_x[3] << " | " << pts_x[4] << std::endl;
+          // std::cout << "x size: " << pts_x.size() << std::endl;
+          // std::cout << "y size: " << pts_y.size() << std::endl;
+          // std::cout << "yaw: " << ref_yaw << std::endl;
+          // std::cout << "X values: " << pts_x[0] << " | " << pts_x[1] << " | " << pts_x[2] << " | " << pts_x[3] << " | " << pts_x[4] << std::endl;
           // DEBUGGING END
 
           // creating spline
@@ -348,11 +347,18 @@ void updateDrivingLane(int &lane, const bool &ready_for_lane_change, const bool 
   if (ready_for_lane_change && is_left_lane_available && lane > 0)
   {
     lane -= 1;
+    std::cout << "STATUS: Switching to left lane." << std::endl;
   }
   // we check for the following flags and ensuring that our current lane is not the right-most left lane
   else if (ready_for_lane_change && is_right_lane_available && lane < 2)
   {
     lane += 1;
+    std::cout << "STATUS: Switching to right lane." << std::endl;
+  }
+  else if (ready_for_lane_change && !is_right_lane_available && !is_left_lane_available)
+  {
+    // TODO - Add a new flag for this particular situation. Maybe adjust your speed based on the speed of the car in front of you(?)
+    std::cout << "STATUS: Neither right or left lane available. Maintaining current lane." << std::endl;
   }
 }
 
