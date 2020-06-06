@@ -19,12 +19,12 @@ void setNextWayPoints(vector<double> &next_x_vals, vector<double> &next_y_vals,
                       const double ref_velocity, const int path_size, tk::spline spl,
                       const double &ref_yaw, const double &ref_x, const double &ref_y);
 
-void updateDrivingLane(int &lane, const bool &ready_for_lane_change, const bool &is_right_lane_available, const bool &is_left_lane_available);
+void updateDrivingLane(int &lane, const bool &ready_for_lane_change, const bool &is_left_lane_available, const bool &is_right_lane_available);
 
-void updateVelocity(double &ref_vel, const bool &is_too_close);
+void updateVelocity(double &ref_vel, const bool &is_too_close, const double &vehicleInFrontSpeed);
 
 // todo - change sensor_fusion to const ref since we are not changing any date from it just accessing it
-void checkVehicleInFront(bool &is_too_close, bool &prepare_for_lane_change, const nlohmann::json &sensor_fusion, const int &lane, const int &prev_size, const double &car_s);
+void checkVehicleInFront(bool &is_too_close, bool &prepare_for_lane_change, const nlohmann::json &sensor_fusion, const int &lane, const int &prev_size, const double &car_s, double &vehicleInFrontSpeed);
 
 int main()
 {
@@ -71,10 +71,14 @@ int main()
   // reference initial velocity
   double ref_vel = 0.0;
 
+  bool transitioning_lanes = false;
+
+  int previous_lane = -1;
+
   // We edited the lamnbda to include our outside vals (lane and ref_val)
   h.onMessage([&map_waypoints_x, &map_waypoints_y, &map_waypoints_s,
-               &map_waypoints_dx, &map_waypoints_dy, &ref_vel, &lane](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
-                                                                      uWS::OpCode opCode) {
+               &map_waypoints_dx, &map_waypoints_dy, &ref_vel, &lane, &transitioning_lanes](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+                                                                                            uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -116,6 +120,8 @@ int main()
 
           int prev_size = previous_path_x.size();
 
+          double vehicleInFrontSpeed = 0;
+
           // setting current car current serret unit (how far along the road) to be the last end_paths serret unit
           if (prev_size > 0)
           {
@@ -131,7 +137,7 @@ int main()
 
           // checking sensor fusion data to check if cars are too close to in front of us
 
-          checkVehicleInFront(is_too_close, prepare_for_lane_change, sensor_fusion, lane, prev_size, car_s);
+          checkVehicleInFront(is_too_close, prepare_for_lane_change, sensor_fusion, lane, prev_size, car_s, vehicleInFrontSpeed);
 
           if (prepare_for_lane_change)
           {
@@ -142,7 +148,7 @@ int main()
             {
               Vehicle vehicle(sensor_fusion[i]);
 
-              // checking left and then right lane
+              // checking left lane, we do not check if we are lane 0. since this is the lane to the very left already
               if (isInLane(vehicle.d, lane - 1))
               {
                 ++num_vehicles_left;                                   // increasing count of vehicles to our left
@@ -150,16 +156,20 @@ int main()
                 bool too_close_to_change = (vehicle.s > car_s - safety_margin / 2) && (vehicle.s < car_s + safety_margin / 2);
                 if (too_close_to_change)
                 {
+                  // std::cout << "LEFT LANE IS NOT FREE DONT GET CLOSE!" << std::endl;
                   is_left_lane_available = false;
                 }
               }
+              //checking lane to the right
               else if (isInLane(vehicle.d, lane + 1))
               {
                 ++num_vehicles_right; // increasing count of vehicles to our right
                 vehicle.s += (double)prev_size * 0.02 * vehicle.speed;
-                bool too_close_to_change = (vehicle.s < car_s - safety_margin / 2) && (vehicle.s < car_s + safety_margin / 2);
+                std::cout << vehicle.s << std::endl;
+                bool too_close_to_change = (vehicle.s > car_s - safety_margin / 2) && (vehicle.s < car_s + safety_margin / 2);
                 if (too_close_to_change)
                 {
+                  // std::cout << "RIGHT LANE IS NOT FREE DONT GET CLOSE!" << std::endl;
                   is_right_lane_available = false;
                 }
               }
@@ -169,13 +179,24 @@ int main()
                 ready_for_lane_change = true;
               }
             }
+
+            if (lane == 0)
+              is_left_lane_available = false;
+
+            if (lane == 2)
+              is_right_lane_available = false;
+
+            std::cout << "LEFT " << num_vehicles_left << " RIGHT " << num_vehicles_right << std::endl;
+            std::cout << "LEFT: " << is_left_lane_available << "\t Right: " << is_right_lane_available << std::endl;
           }
 
           // performing lane change based on lane availability and being ready to change lanes
           updateDrivingLane(lane, ready_for_lane_change, is_left_lane_available, is_right_lane_available);
 
+          // std::cout << "Current Lane Number is: " << lane << std::endl;
+
           // updating velocity based on restrictions
-          updateVelocity(ref_vel, is_too_close);
+          updateVelocity(ref_vel, is_too_close, vehicleInFrontSpeed);
 
           // list of waypoints that will be used for spline interpolations
           vector<double> pts_x;
@@ -199,7 +220,7 @@ int main()
           }
           else
           {
-
+            // using the previous last 2 previous points as initial points
             ref_x = previous_path_x[prev_size - 1];
             ref_y = previous_path_y[prev_size - 1];
 
@@ -314,13 +335,13 @@ void setNextWayPoints(vector<double> &next_x_vals,
                       const double &ref_y)
 {
   double target_x = 30.0;
-  double target_y = spl(0);
+  double target_y = spl(target_y);
   double target_dist = sqrt(target_x * target_x + target_y * target_y);
   double x_add_on = 0.0;
 
   for (size_t i = 1; i <= 50 - path_size; ++i)
   {
-    double N = target_dist / (0.02 * ref_velocity / 2.24);
+    double N = target_dist / (0.02 * ref_velocity / 2.237);
     double x_point = x_add_on + target_x / N;
     double y_point = spl(x_point);
 
@@ -341,41 +362,66 @@ void setNextWayPoints(vector<double> &next_x_vals,
   }
 }
 
-void updateDrivingLane(int &lane, const bool &ready_for_lane_change, const bool &is_right_lane_available, const bool &is_left_lane_available)
+void updateDrivingLane(int &lane, const bool &ready_for_lane_change, const bool &is_left_lane_available, const bool &is_right_lane_available)
 {
   // we check for the following flags and ensuring that our current lane is not the left-most left lane
   if (ready_for_lane_change && is_left_lane_available && lane > 0)
   {
+    std::cout << "STATUS: Switching to left lane: " << lane << std::endl;
     lane -= 1;
-    std::cout << "STATUS: Switching to left lane." << std::endl;
+    std::cout << "New lane is: " << lane << std::endl;
   }
   // we check for the following flags and ensuring that our current lane is not the right-most left lane
   else if (ready_for_lane_change && is_right_lane_available && lane < 2)
   {
+    std::cout << "STATUS: Switching to right lane: " << lane << std::endl;
     lane += 1;
-    std::cout << "STATUS: Switching to right lane." << std::endl;
+    std::cout << "New lane is: " << lane << std::endl;
   }
-  else if (ready_for_lane_change && !is_right_lane_available && !is_left_lane_available)
+  else if (ready_for_lane_change && (!is_right_lane_available || !is_left_lane_available))
   {
     // TODO - Add a new flag for this particular situation. Maybe adjust your speed based on the speed of the car in front of you(?)
     std::cout << "STATUS: Neither right or left lane available. Maintaining current lane." << std::endl;
+    std::cout << "STATUS: Left: " << is_left_lane_available << "Right: " << is_right_lane_available << std::endl;
   }
 }
 
 // adjusting current velocity by 1.prioritizing safety and then 2. efficiency, by accelerating as long as we are not over the speed limit
-void updateVelocity(double &ref_vel, const bool &is_too_close)
+void updateVelocity(double &ref_vel, const bool &is_too_close, const double &vehicleInFrontSpeed)
 {
   if (is_too_close)
   {
-    ref_vel -= acceleration; // deceleration speed
+    // ref_vel -= acceleration; // deceleration speed
+    // ref_vel = vehicleInFrontSpeed - acceleration;
+    ref_vel = ref_vel * 0.7 + vehicleInFrontSpeed * 0.3;
+    double weighted_speed = ref_vel * 0.95 + vehicleInFrontSpeed * 0.05;
+    double calculated_deceleration = ref_vel - weighted_speed;
+
+    // this value is too high and will cause jerk. // defaulting to regular interval deceleration
+    if (calculated_deceleration > acceleration || calculated_deceleration < 0)
+    {
+      ref_vel -= acceleration;
+      std::cout << "Using regular deceleration: " << ref_vel << std::endl;
+    }
+    else
+    {
+      ref_vel -= calculated_deceleration;
+      std::cout << "Using weighted average: " << calculated_deceleration << std::endl;
+    }
   }
   else if (ref_vel < max_safe_speed)
   {
     ref_vel += acceleration; //acceleration speed
   }
+  if (vehicleInFrontSpeed > 0)
+  {
+    std::cout << "Hey we have a vehicle in front of us, let's adjust our speed to theirs!" << std::endl;
+  }
+
+  std::cout << "===============================================================" << std::endl;
 }
 
-void checkVehicleInFront(bool &is_too_close, bool &prepare_for_lane_change, const nlohmann::json &sensor_fusion, const int &lane, const int &prev_size, const double &car_s)
+void checkVehicleInFront(bool &is_too_close, bool &prepare_for_lane_change, const nlohmann::json &sensor_fusion, const int &lane, const int &prev_size, const double &car_s, double &vehicleInFrontSpeed)
 {
   for (size_t i = 0; i < sensor_fusion.size(); ++i)
   {
@@ -391,6 +437,8 @@ void checkVehicleInFront(bool &is_too_close, bool &prepare_for_lane_change, cons
 
       if (is_in_front_of_us && is_closer_than_safety_margin)
       {
+        std::cout << "STATUS: Vehicle in front of us is going at: " << vehicle.speed * 2.237 << std::endl;
+        vehicleInFrontSpeed = vehicle.speed * 2.237; //converting speed from meters per second to miles per hour
         is_too_close = true;
         prepare_for_lane_change = true;
         std::cout << "STATUS: Vehicle in front of us. Preparing for lane change." << std::endl;
