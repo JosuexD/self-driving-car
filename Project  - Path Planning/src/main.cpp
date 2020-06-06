@@ -151,9 +151,19 @@ int main()
               // checking left lane, we do not check if we are lane 0. since this is the lane to the very left already
               if (isInLane(vehicle.d, lane - 1))
               {
+                // we only care about vehicles in front of us non the other lanes not before us
+                if (vehicle.s > car_s)
+                {
+                  bool enough_space_in_front = vehicle.s > car_s + 30;
+                  std::cout << "STATUS: Left lane space availability is: " << enough_space_in_front << std::endl;
+                  if (!enough_space_in_front)
+                    is_left_lane_available = false;
+                }
+
                 ++num_vehicles_left;                                   // increasing count of vehicles to our left
                 vehicle.s += (double)prev_size * 0.02 * vehicle.speed; // taking into account our previous vehicles's speed and adding it to our current serret measurements
                 bool too_close_to_change = (vehicle.s > car_s - safety_margin / 2) && (vehicle.s < car_s + safety_margin / 2);
+
                 if (too_close_to_change)
                 {
                   // std::cout << "LEFT LANE IS NOT FREE DONT GET CLOSE!" << std::endl;
@@ -164,9 +174,21 @@ int main()
               else if (isInLane(vehicle.d, lane + 1))
               {
                 ++num_vehicles_right; // increasing count of vehicles to our right
+                // std::cout << "STATUS: Sensor: " << vehicle.s << " Our car: " << car_s << std::endl;
+                if (vehicle.s > car_s)
+                {
+                  bool enough_space_in_front = vehicle.s > car_s + 30;
+                  std::cout << "STATUS: Right lane space availability is: " << enough_space_in_front << std::endl;
+                  if (!enough_space_in_front)
+                    is_right_lane_available = false;
+                }
+
                 vehicle.s += (double)prev_size * 0.02 * vehicle.speed;
-                std::cout << vehicle.s << std::endl;
                 bool too_close_to_change = (vehicle.s > car_s - safety_margin / 2) && (vehicle.s < car_s + safety_margin / 2);
+
+                // bool enough_space_in_front = vehicle.s > car_s + 20;
+                // std::cout << "STATUS: Right lane space availability is: " << enough_space_in_front << std::endl;
+
                 if (too_close_to_change)
                 {
                   // std::cout << "RIGHT LANE IS NOT FREE DONT GET CLOSE!" << std::endl;
@@ -391,22 +413,21 @@ void updateVelocity(double &ref_vel, const bool &is_too_close, const double &veh
 {
   if (is_too_close)
   {
-    // ref_vel -= acceleration; // deceleration speed
-    // ref_vel = vehicleInFrontSpeed - acceleration;
-    ref_vel = ref_vel * 0.7 + vehicleInFrontSpeed * 0.3;
-    double weighted_speed = ref_vel * 0.95 + vehicleInFrontSpeed * 0.05;
+    double weighted_speed = ref_vel * 0.9 + vehicleInFrontSpeed * 0.1;
     double calculated_deceleration = ref_vel - weighted_speed;
 
     // this value is too high and will cause jerk. // defaulting to regular interval deceleration
     if (calculated_deceleration > acceleration || calculated_deceleration < 0)
     {
       ref_vel -= acceleration;
-      std::cout << "Using regular deceleration: " << ref_vel << std::endl;
+      // std::cout << "Using regular deceleration: " << acceleration << std::endl;
+      // std::cout << "Speed: " << ref_vel << std::endl;
     }
     else
     {
       ref_vel -= calculated_deceleration;
-      std::cout << "Using weighted average: " << calculated_deceleration << std::endl;
+      // std::cout << "Using weighted deceleration: " << calculated_deceleration << std::endl;
+      // std::cout << "Speed: " << ref_vel << std::endl;
     }
   }
   else if (ref_vel < max_safe_speed)
@@ -417,8 +438,6 @@ void updateVelocity(double &ref_vel, const bool &is_too_close, const double &veh
   {
     std::cout << "Hey we have a vehicle in front of us, let's adjust our speed to theirs!" << std::endl;
   }
-
-  std::cout << "===============================================================" << std::endl;
 }
 
 void checkVehicleInFront(bool &is_too_close, bool &prepare_for_lane_change, const nlohmann::json &sensor_fusion, const int &lane, const int &prev_size, const double &car_s, double &vehicleInFrontSpeed)
@@ -441,7 +460,6 @@ void checkVehicleInFront(bool &is_too_close, bool &prepare_for_lane_change, cons
         vehicleInFrontSpeed = vehicle.speed * 2.237; //converting speed from meters per second to miles per hour
         is_too_close = true;
         prepare_for_lane_change = true;
-        std::cout << "STATUS: Vehicle in front of us. Preparing for lane change." << std::endl;
       }
     }
   }
