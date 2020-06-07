@@ -2,3 +2,6 @@
 build
 tags
 .editorconfig
+build/*
+cmake-build-debug/*
+.idea/*
