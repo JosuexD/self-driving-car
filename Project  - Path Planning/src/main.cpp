@@ -139,10 +139,9 @@ int main()
           bool ready_for_lane_change = false;
           bool is_left_lane_available = true;
           bool is_right_lane_available = true;
+          bool has_switched_lane = false;
 
           // checking sensor fusion data to check if cars are too close to in front of us
-
-          bool has_switched_lane = false;
 
           checkVehicleInFront(is_too_close, prepare_for_lane_change, sensor_fusion, lane, prev_size, car_s, vehicleInFrontSpeed);
 
@@ -162,7 +161,7 @@ int main()
                 if (vehicle.s > car_s)
                 {
                   bool enough_space_in_front = vehicle.s > car_s + 30;
-                  std::cout << "STATUS: Left lane space availability is: " << enough_space_in_front << std::endl;
+                  // std::cout << "STATUS: Left lane space availability is: " << enough_space_in_front << std::endl;
                   if (!enough_space_in_front)
                     is_left_lane_available = false;
                 }
@@ -185,7 +184,7 @@ int main()
                 if (vehicle.s > car_s)
                 {
                   bool enough_space_in_front = vehicle.s > car_s + 30;
-                  std::cout << "STATUS: Right lane space availability is: " << enough_space_in_front << std::endl;
+                  // std::cout << "STATUS: Right lane space availability is: " << enough_space_in_front << std::endl;
                   if (!enough_space_in_front)
                     is_right_lane_available = false;
                 }
@@ -240,7 +239,6 @@ int main()
           double ref_x = car_x;
           double ref_y = car_y;
           double ref_yaw = deg2rad(car_yaw);
-
           // if previous size is almost empty, use the car as a starting reference
           if (prev_size < 2)
           {
@@ -331,7 +329,7 @@ int main()
             on_lane_switch_cooldown = false;
           }
 
-          std::cout << "Elapsed time: " << elapsed_seconds.count() << std::endl;
+          // std::cout << "Elapsed time: " << elapsed_seconds.count() << std::endl;
 
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         } // end "telemetry" if
@@ -379,15 +377,18 @@ void setNextWayPoints(vector<double> &next_x_vals,
                       const double &ref_x,
                       const double &ref_y)
 {
-  double target_x = 30.0;
+  double target_x = 30.0; // target value in the spline, this would essentially be the 30 serret units in the future value we calculated earlier
   double target_y = spl(target_y);
   double target_dist = sqrt(target_x * target_x + target_y * target_y);
   double x_add_on = 0.0;
 
+  // This loop for the most part will only run a single time, however in the very beggining it will run 50 times since we don't have previous paths
   for (size_t i = 1; i <= 50 - path_size; ++i)
   {
+    // N holds the value for the next measurement in the future. This can be noted by the 0.02 which is the tick rate for the simulator
+    // and the 2.237 value used to convert meter per second to miles per hour when multiplied by velocity.
     double N = target_dist / (0.02 * ref_velocity / 2.237);
-    double x_point = x_add_on + target_x / N;
+    double x_point = x_add_on + target_x / N; // This point holds the next 'future' value that we are interested that is in the spline.
     double y_point = spl(x_point);
 
     x_add_on = x_point;
@@ -399,6 +400,7 @@ void setNextWayPoints(vector<double> &next_x_vals,
     x_point = x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw);
     y_point = x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw);
 
+    // incrementing our current x y coordinates to the newly calculated points.
     x_point += ref_x;
     y_point += ref_y;
 
@@ -432,8 +434,8 @@ bool updateDrivingLane(bool &on_lane_switch_cooldown, int &lane, const bool &rea
     else if (ready_for_lane_change && (!is_right_lane_available || !is_left_lane_available))
     {
       // TODO - Add a new flag for this particular situation. Maybe adjust your speed based on the speed of the car in front of you(?)
-      std::cout << "STATUS: Neither right or left lane available. Maintaining current lane." << std::endl;
-      std::cout << "STATUS: Left: " << is_left_lane_available << "Right: " << is_right_lane_available << std::endl;
+      // std::cout << "STATUS: Neither right or left lane available. Maintaining current lane." << std::endl;
+      // std::cout << "STATUS: Left: " << is_left_lane_available << "Right: " << is_right_lane_available << std::endl;
       return false;
     }
   }
@@ -445,21 +447,21 @@ void updateVelocity(double &ref_vel, const bool &is_too_close, const double &veh
 {
   if (is_too_close)
   {
-    double weighted_speed = ref_vel * 0.9 + vehicleInFrontSpeed * 0.1;
+    double weighted_speed = ref_vel * 0.8 + vehicleInFrontSpeed * 0.2;
     double calculated_deceleration = ref_vel - weighted_speed;
 
     // this value is too high and will cause jerk. // defaulting to regular interval deceleration
-    if (calculated_deceleration > acceleration || calculated_deceleration < 0)
+    if (calculated_deceleration > deceleration || calculated_deceleration < 0)
     {
-      ref_vel -= acceleration;
-      // std::cout << "Using regular deceleration: " << acceleration << std::endl;
-      // std::cout << "Speed: " << ref_vel << std::endl;
+      ref_vel -= deceleration;
+      std::cout << "Using regular deceleration: " << deceleration << std::endl;
+      std::cout << "Speed: " << ref_vel << std::endl;
     }
     else
     {
       ref_vel -= calculated_deceleration;
-      // std::cout << "Using weighted deceleration: " << calculated_deceleration << std::endl;
-      // std::cout << "Speed: " << ref_vel << std::endl;
+      std::cout << "Using weighted deceleration: " << calculated_deceleration << std::endl;
+      std::cout << "Speed: " << ref_vel << std::endl;
     }
   }
   else if (ref_vel < max_safe_speed)

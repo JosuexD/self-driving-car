@@ -15,6 +15,7 @@ const double lane_width = 4.0;      // lane width
 const double safety_margin = 20.0;  // distance to stay from other cars
 const double max_safe_speed = 49.5; // max reference speed in limits mph
 const double acceleration = 0.2;    // value to change when accelerations/decelearating
+const double deceleration = 0.13;
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,

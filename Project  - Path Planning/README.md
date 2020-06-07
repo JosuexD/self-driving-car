@@ -17,6 +17,7 @@ sudo chmod u+x {simulator_file_name}
 In this project your goal is to safely navigate around a virtual highway with other traffic that is driving +-10 MPH of the 50 MPH speed limit. You will be provided the car's localization and sensor fusion data, there is also a sparse map list of waypoints around the highway. The car should try to go as close as possible to the 50 MPH speed limit, which means passing slower traffic when possible, note that other cars will try to change lanes too. The car should avoid hitting other cars at all cost as well as driving inside of the marked road lanes at all times, unless going from one lane to another. The car should be able to make one complete loop around the 6946m highway. Since the car is trying to go 50 MPH, it should take a little over 5 minutes to complete 1 loop. Also the car should not experience total acceleration over 10 m/s^2 and jerk that is greater than 10 m/s^3.
 
 #### The map of the highway is in data/highway_map.txt
+
 Each waypoint in the list contains [x,y,s,dx,dy] values. x and y are the waypoint's map coordinate position, the s value is the distance along the road to get to that waypoint in meters, the dx and dy values define the unit normal vector pointing outward of the highway loop.
 
 The highway's waypoints loop around so the frenet s value, distance along the road, goes from 0 to 6945.554.
@@ -146,25 +147,3 @@ still be compilable with cmake and make./
 ## How to write a README
 
 A well written README file can enhance your project and portfolio. Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
-
-## Model Documentation
-
-Below you'll find a description of the different steps taken to create a successful path in my project.
-
-Observing lines 81-93 we check for the length of the incoming message, ensure that the message is not empty and it contains the string 'telemetry'. All these checks are in place to ensure that we are observing the proper incoming message with the data that we require for processing.
-
-Lines 98- 117 begins reading the incoming data after having it converted into a json object and gets the individual componets of our vehicles speed, coordinates, and turning angle. In addition we also obtain the sensor_fusion data for the surrounding vehicles that our sensors have picked up.
-
-Lines 126-130 sets the flags that will be used for the different state machine transitions. These flags allow us to determine actions such as vehicles being too close to us, telling us if we should change lanes, and showing us which lanes are available.
-
-The function 'checkVehicleInFront' uses sensor fusion to determine if the vehicle that is directly in front of us is too close to our set safety distance limit. If this is the case, we set the appropriate flags to ensure that we find another lane to change to, if available.
-
-Lines 138- 172 relies on sensor fusion to determine if there is availability on the left and right lane. These checks only occur if the flag for 'prepare_for_lane_change' is turned on.
-
-The function 'updateDrivingLane' is then computed once we have obtained the necessary information of which lanes are available and if we should be changing lanes.
-
-The function 'updateVelocity' adjusts our current velocity directly proportional whether the vehicle in front of us is too close and whether we are not going above the indicated speed limit.
-
-Lines 181- 259 do the following: First we create vectors that will store the points used for interpolating the spline. We then check if it is the first time that we are sending messages to the sim by checking the 'prev_size' which contains the size of the previous waypoints sent to the sim, after that check we push the last 2 previous coordinates into our vectors pts_x and pts_y. We begin to obtain our next waypoints in increment of 30: 30, 60, 90 meters from out current waypoints , this is calculated in cartesians coordinates and added to the vector containing waypoints.
-
-Finally in function 'setNextWayPoints' we take the previous coordinates, a reference to the spline object and calculate a smooth spline curve spread across 50 points, that smoothly transition between the previous calculated intervals. These are packaged into 'next_x_vals' and 'next_y_vals' and then packaged into a json object that is sent back to the sim.
