@@ -9,6 +9,7 @@
 #include "helpers.h"
 #include "json.hpp"
 #include "spline.h"
+#include <chrono>
 
 // for convenience
 using nlohmann::json;
@@ -19,7 +20,7 @@ void setNextWayPoints(vector<double> &next_x_vals, vector<double> &next_y_vals,
                       const double ref_velocity, const int path_size, tk::spline spl,
                       const double &ref_yaw, const double &ref_x, const double &ref_y);
 
-void updateDrivingLane(int &lane, const bool &ready_for_lane_change, const bool &is_left_lane_available, const bool &is_right_lane_available);
+bool updateDrivingLane(bool &on_lane_switch_cooldown, int &lane, const bool &ready_for_lane_change, const bool &is_left_lane_available, const bool &is_right_lane_available);
 
 void updateVelocity(double &ref_vel, const bool &is_too_close, const double &vehicleInFrontSpeed);
 
@@ -28,6 +29,8 @@ void checkVehicleInFront(bool &is_too_close, bool &prepare_for_lane_change, cons
 
 int main()
 {
+
+  auto start = std::chrono::steady_clock::now();
   uWS::Hub h;
 
   // Load up map values for waypoint's x,y,s and d normalized normal vectors
@@ -71,14 +74,16 @@ int main()
   // reference initial velocity
   double ref_vel = 0.0;
 
-  bool transitioning_lanes = false;
+  bool on_lane_switch_cooldown = false;
 
   int previous_lane = -1;
 
+  const double switch_cooldown_timer = 5.0;
+
   // We edited the lamnbda to include our outside vals (lane and ref_val)
   h.onMessage([&map_waypoints_x, &map_waypoints_y, &map_waypoints_s,
-               &map_waypoints_dx, &map_waypoints_dy, &ref_vel, &lane, &transitioning_lanes](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
-                                                                                            uWS::OpCode opCode) {
+               &map_waypoints_dx, &map_waypoints_dy, &ref_vel, &lane, &on_lane_switch_cooldown, &start, &switch_cooldown_timer](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+                                                                                                                                uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -136,6 +141,8 @@ int main()
           bool is_right_lane_available = true;
 
           // checking sensor fusion data to check if cars are too close to in front of us
+
+          bool has_switched_lane = false;
 
           checkVehicleInFront(is_too_close, prepare_for_lane_change, sensor_fusion, lane, prev_size, car_s, vehicleInFrontSpeed);
 
@@ -213,7 +220,13 @@ int main()
           }
 
           // performing lane change based on lane availability and being ready to change lanes
-          updateDrivingLane(lane, ready_for_lane_change, is_left_lane_available, is_right_lane_available);
+          has_switched_lane = updateDrivingLane(on_lane_switch_cooldown, lane, ready_for_lane_change, is_left_lane_available, is_right_lane_available);
+
+          if (has_switched_lane)
+          {
+            start = std::chrono::steady_clock::now();
+            on_lane_switch_cooldown = true;
+          }
 
           // std::cout << "Current Lane Number is: " << lane << std::endl;
 
@@ -310,6 +323,16 @@ int main()
 
           auto msg = "42[\"control\"," + msgJson.dump() + "]";
 
+          auto end = std::chrono::steady_clock::now();
+          std::chrono::duration<double> elapsed_seconds = end - start;
+
+          if (elapsed_seconds.count() > switch_cooldown_timer)
+          {
+            on_lane_switch_cooldown = false;
+          }
+
+          std::cout << "Elapsed time: " << elapsed_seconds.count() << std::endl;
+
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         } // end "telemetry" if
       }
@@ -384,28 +407,37 @@ void setNextWayPoints(vector<double> &next_x_vals,
   }
 }
 
-void updateDrivingLane(int &lane, const bool &ready_for_lane_change, const bool &is_left_lane_available, const bool &is_right_lane_available)
+bool updateDrivingLane(bool &on_lane_switch_cooldown, int &lane, const bool &ready_for_lane_change, const bool &is_left_lane_available, const bool &is_right_lane_available)
 {
   // we check for the following flags and ensuring that our current lane is not the left-most left lane
-  if (ready_for_lane_change && is_left_lane_available && lane > 0)
+
+  // only change lanes if we are not on cooldown
+  if (!on_lane_switch_cooldown)
   {
-    std::cout << "STATUS: Switching to left lane: " << lane << std::endl;
-    lane -= 1;
-    std::cout << "New lane is: " << lane << std::endl;
+    if (ready_for_lane_change && is_left_lane_available && lane > 0)
+    {
+      std::cout << "STATUS: Switching to left lane: " << lane << std::endl;
+      lane -= 1;
+      std::cout << "New lane is: " << lane << std::endl;
+      return true;
+    }
+    // we check for the following flags and ensuring that our current lane is not the right-most left lane
+    else if (ready_for_lane_change && is_right_lane_available && lane < 2)
+    {
+      std::cout << "STATUS: Switching to right lane: " << lane << std::endl;
+      lane += 1;
+      std::cout << "New lane is: " << lane << std::endl;
+      return true;
+    }
+    else if (ready_for_lane_change && (!is_right_lane_available || !is_left_lane_available))
+    {
+      // TODO - Add a new flag for this particular situation. Maybe adjust your speed based on the speed of the car in front of you(?)
+      std::cout << "STATUS: Neither right or left lane available. Maintaining current lane." << std::endl;
+      std::cout << "STATUS: Left: " << is_left_lane_available << "Right: " << is_right_lane_available << std::endl;
+      return false;
+    }
   }
-  // we check for the following flags and ensuring that our current lane is not the right-most left lane
-  else if (ready_for_lane_change && is_right_lane_available && lane < 2)
-  {
-    std::cout << "STATUS: Switching to right lane: " << lane << std::endl;
-    lane += 1;
-    std::cout << "New lane is: " << lane << std::endl;
-  }
-  else if (ready_for_lane_change && (!is_right_lane_available || !is_left_lane_available))
-  {
-    // TODO - Add a new flag for this particular situation. Maybe adjust your speed based on the speed of the car in front of you(?)
-    std::cout << "STATUS: Neither right or left lane available. Maintaining current lane." << std::endl;
-    std::cout << "STATUS: Left: " << is_left_lane_available << "Right: " << is_right_lane_available << std::endl;
-  }
+  return false;
 }
 
 // adjusting current velocity by 1.prioritizing safety and then 2. efficiency, by accelerating as long as we are not over the speed limit
