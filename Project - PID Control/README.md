@@ -7,9 +7,11 @@ Self-Driving Car Engineer Nanodegree Program
 ## PID Control
 
 https://gyazo.com/cb52460314f5d53b0fae1285094998e3
+
 Based on the lecture in the course and external material. I came to the understanding of the different effects that each component in the PID controller has based on their different values.
 
 Proportional Gain - This particular component allows us to turn harder the further we are from our desired destination, this is depends on the Cross Track Error (CTE). In terms of actual results. If this number was too large, we would have very excessive steering, on the opposite spectrum, if the value is set too low, it would take a very long time to get back to the center or CTE nearing 0. Below you can observe a gif of an exagerated P value:
+
 https://gyazo.com/78cc8b4cfe99b4c4036b13504fa4e7a7
 
 Derivative Gain - This component allows us to determine how 'quickly' we turn with increased CTE. If this value is too low we enter what we call an 'underdamped' state and we will see a lot of oscillation in our driving. On the opposite spectrum is the derivative gain is too high we get a 'overdamped' behaviour, which would increase the amount of time it takes to get back to a near 0 CTE.
