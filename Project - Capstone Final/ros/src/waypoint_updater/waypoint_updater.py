@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import rospy
+import numpy as np
 from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
 from scipy.spatial import KDTree
@@ -23,7 +24,7 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 200  # Number of waypoints we will publish. You can change this number
 
 
 class WaypointUpdater(object):
@@ -35,29 +36,33 @@ class WaypointUpdater(object):
 
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
 
-
-        self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
+        self.final_waypoints_pub = rospy.Publisher(
+            'final_waypoints', Lane, queue_size=1)
 
         # TODO: Add other member variables you need below
         self.pose = None
+        self.base_waypoints = None
         self.waypoints_2d = None
         self.waypoint_tree = None
-        
-        #rospy.spin()
+
+        # rospy.spin()
 
         self.loop()
 
     def loop(self):
-        rate = rospy.Rate(50)
+        rate = rospy.Rate(50)  # running main loop at 50hz
         while not rospy.is_shutdown():
-            # get closest waypoint
-            closest_waypoints_idx = self.get_closest_waypoint_idx()
-            self.publish_waypoints(closest_waypoint_idx)
-        rate.sleep()
+            if self.pose and self.base_waypoints:
+                # get closest waypoint
+                closest_waypoint_idx = self.get_closest_waypoint_idx()
+                self.publish_waypoints(closest_waypoint_idx)
+            rate.sleep()
 
-    def get_closest_waypoint_id(self):
+    def get_closest_waypoint_idx(self):
         x = self.pose.pose.position.x
         y = self.pose.pose.position.y
+
+        # Obtaining position of our vehicle in relations to all the waypoints utilizing the KDTree
         closest_idx = self.waypoint_tree.query([x, y], 1)[1]
 
         # check if cloest is ahead of behind vehicle
@@ -65,16 +70,16 @@ class WaypointUpdater(object):
         prev_coord = self.waypoints_2d[closest_idx - 1]
 
         # equation for hyperplane through closest coords
-        cl_Vect = np.array(closest_coord)
+        cl_vect = np.array(closest_coord)
         prev_vect = np.array(prev_coord)
         pos_vect = np.array([x, y])
 
-        val = np.dot(cl_vect - prev_cet, pos_vect - cl_vect)
+        val = np.dot(cl_vect - prev_vect, pos_vect - cl_vect)
 
+        # determining if the waypoint is in front or behind our current location
         if val > 0:
-            closest_idxs ( closest_idcs + 1) % len(self.waypoints_2d)
+            closest_idx = (closest_idx + 1) % len(self.waypoints_2d)
         return closest_idx
-
 
     def publish_waypoints(self, closest_idx):
         lane = Lane()
@@ -88,9 +93,11 @@ class WaypointUpdater(object):
     def waypoints_cb(self, waypoints):
         self.base_waypoints = waypoints
         if not self.waypoints_2d:
-            self.waypoints_2d = [[waypoint.pose.pose.position.x, waypoint.pose.pose.position.y] for waypoint in waypoints.waypoints]
+            # convrting the waypoints into simply x and y values so that the KD tree can
+            self.waypoints_2d = [[waypoint.pose.pose.position.x,
+                                  waypoint.pose.pose.position.y] for waypoint in waypoints.waypoints]
+            # Constructing KDTree with list of 2d coordinates
             self.waypoint_tree = KDTree(self.waypoints_2d)
-        
 
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
@@ -108,9 +115,12 @@ class WaypointUpdater(object):
 
     def distance(self, waypoints, wp1, wp2):
         dist = 0
-        dl = lambda a, b: math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2  + (a.z-b.z)**2)
+
+        def dl(a, b): return math.sqrt(
+            (a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2)
         for i in range(wp1, wp2+1):
-            dist += dl(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
+            dist += dl(waypoints[wp1].pose.pose.position,
+                       waypoints[i].pose.pose.position)
             wp1 = i
         return dist
 
