@@ -91,6 +91,8 @@ class TLDetector(object):
         self.has_image = True
         self.camera_image = msg
         light_wp, state = self.process_traffic_lights()
+        print ("this is the light waypoint we got so far: " + str(light_wp))
+
 
         '''
         Publish upcoming red lights at camera frequency.
@@ -171,7 +173,8 @@ class TLDetector(object):
                 d = temp_wp_idx - car_wp_idx
 
                 if d >= 0 and d < diff:
-                    diff = closest_light = light
+                    diff = d
+                    closest_light = light
                     line_wp_idx = temp_wp_idx
 
         if closest_light:
