@@ -69,7 +69,7 @@ class TLDetector(object):
         if not self.waypoints_2d:
             self.waypoints_2d = [[waypoint.pose.pose.position.x,
                                   waypoint.pose.pose.position.y] for waypoint in waypoints.waypoints]
-            self.waypoint_tree = KDTree(self.waypoints_2d)
+            self.waypoints_tree = KDTree(self.waypoints_2d)
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
@@ -82,6 +82,15 @@ class TLDetector(object):
             msg (Image): image from car-mounted camera
 
         """
+        if(self.waypoints_tree == None):
+            return
+        
+        if self.image_process_count == 0:
+            self.image_process_count = IMAGE_PROCESS_THRESHOLD
+        else:
+            self.image_process_count = self.image_process_count - 1
+            return
+
         self.has_image = True
         self.camera_image = msg
         light_wp, state = self.process_traffic_lights()
@@ -114,7 +123,7 @@ class TLDetector(object):
             int: index of the closest waypoint in self.waypoints
 
         """
-        closest_idx = self.waypoint_tree.query([x, y], 1)[1]
+        closest_idx = self.waypoints_tree.query([x, y], 1)[1]
 
         return closest_idx
 

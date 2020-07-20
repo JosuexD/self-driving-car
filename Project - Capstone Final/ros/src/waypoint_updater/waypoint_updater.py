@@ -41,11 +41,12 @@ class WaypointUpdater(object):
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
         rospy.Subscriber('/traffic_waypoints', Int32, self.traffic_cb)
 
+        # setting member variables to initial states
         self.base_lane = None
         self.pose = None
         self.stop_line_wp_idx = None
         self.waypoints_2d = None
-        self.waypoint_tree = None
+        self.waypoints_tree = None
         self.decelerate_count = 0
 
         self.final_waypoints_pub = rospy.Publisher(
@@ -67,7 +68,7 @@ class WaypointUpdater(object):
         y = self.pose.pose.position.y
 
         # Obtaining position of our vehicle in relations to all the waypoints utilizing the KDTree
-        closest_idx = self.waypoint_tree.query([x, y], 1)[1]
+        closest_idx = self.waypoints_tree.query([x, y], 1)[1]
 
         # check if cloest is ahead of behind vehicle
         closest_coord = self.waypoints_2d[closest_idx]
@@ -133,7 +134,7 @@ class WaypointUpdater(object):
             self.waypoints_2d = [[waypoint.pose.pose.position.x,
                                   waypoint.pose.pose.position.y] for waypoint in waypoints.waypoints]
             # Constructing KDTree with list of 2d coordinates
-            self.waypoint_tree = KDTree(self.waypoints_2d)
+            self.waypoints_tree = KDTree(self.waypoints_2d)
 
     def traffic_cb(self, msg):
         self.stopline_wp_idx = msg.data

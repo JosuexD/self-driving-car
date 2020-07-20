@@ -15,16 +15,16 @@ class Controller(object):
         self.yaw_controller = YawController(
             wheel_base, steer_ratio, 0.1, max_lat_accel, max_steer_angle)
 
-        kp = 0.3
-        ki = 0.1
-        kd = 0.0
+        kp = 0.8
+        ki = 0.01
+        kd = 0.2
         mn = 0.0  # min throttle value
         mx = 0.2  # max throttle value
         self.throttle_controller = PID(kp, ki, kd, mn, mx)
 
         tau = 0.5
         ts = .02
-        self.vel_lpd = LowPassFilter(tau, ts)
+        self.vel_lpf = LowPassFilter(tau, ts)
 
         self.vehicle_mass = vehicle_mass
         self.fuel_capacity = fuel_capacity
@@ -41,7 +41,7 @@ class Controller(object):
             self.throttle_controller.reset()
             return 0., 0., 0.
 
-        current_vel = self.vel_lpd.filt(current_vel)
+        current_vel = self.vel_lpf.filt(current_vel)
 
         steering = self.yaw_controller.get_steering(
             linear_vel, angular_vel, current_vel)
