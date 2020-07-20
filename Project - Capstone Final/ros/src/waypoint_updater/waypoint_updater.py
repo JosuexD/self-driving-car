@@ -44,7 +44,7 @@ class WaypointUpdater(object):
         # setting member variables to initial states
         self.base_lane = None
         self.pose = None
-        self.stop_line_wp_idx = None
+        self.stopline_wp_idx = None
         self.waypoints_2d = None
         self.waypoints_tree = None
         self.decelerate_count = 0
