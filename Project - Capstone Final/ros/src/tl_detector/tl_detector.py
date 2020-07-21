@@ -180,7 +180,6 @@ class TLDetector(object):
         if closest_light:
             state = self.get_light_state(light)
             return line_wp_idx, state
-        self.waypoints = None
 
         return -1, TrafficLight.UNKNOWN
 
