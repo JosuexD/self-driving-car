@@ -179,6 +179,7 @@ class TLDetector(object):
 
         if closest_light:
             state = self.get_light_state(light)
+            print("This is the state of the closest light: " + str(state))
             return line_wp_idx, state
 
         return -1, TrafficLight.UNKNOWN
