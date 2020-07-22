@@ -177,7 +177,7 @@ class TLDetector(object):
                     closest_light = light
                     line_wp_idx = temp_wp_idx
 
-        if closest_light:
+        if closest_light and ((line_wp_idx - car_wp_idx) <= 100):
             state = self.get_light_state(light)
             print("This is the state of the closest light: " + str(state))
             return line_wp_idx, state
